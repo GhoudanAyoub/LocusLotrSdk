@@ -1,32 +1,43 @@
 package com.locus.sdk.sampletrackingapp
 
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Fragment
 import android.content.Context
 import android.content.IntentSender
 import android.content.SharedPreferences
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.PermissionRequest
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.fragment.app.Fragment
 import com.google.android.gms.common.api.ResolvableApiException
+import com.karumi.dexter.Dexter
+import com.karumi.dexter.MultiplePermissionsReport
+import com.karumi.dexter.PermissionToken
+import com.karumi.dexter.listener.PermissionRequest
+import com.karumi.dexter.listener.multi.MultiplePermissionsListener
 import com.locus.sdk.sampletrackingapp.databinding.FragmentTrackinBinding
 import io.reactivex.schedulers.Schedulers
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import sh.locus.lotr.sdk.LocusLocation
-import sh.locus.lotr.sdk.LocusLotrSdk
-import sh.locus.lotr.sdk.LogoutStatusListener
-import sh.locus.lotr.sdk.TrackingListener
-import sh.locus.lotr.sdk.TrackingRequestParams
+import sh.locus.lotr.model.Geofence
+import sh.locus.lotr.model.Task
+import sh.locus.lotr.model.TaskStatusRequest
+import sh.locus.lotr.model.VisitStatusRequest
+import sh.locus.lotr.sdk.*
 import sh.locus.lotr.sdk.exception.LotrSdkError
 import sh.locus.lotr.sdk.logging.LotrSdkEventType
-import java.util.Date
+import java.security.AccessController.getContext
+import java.util.*
 
 class TrackinFragment : Fragment(), TrackingListener {
 
@@ -38,6 +49,7 @@ class TrackinFragment : Fragment(), TrackingListener {
     private lateinit var logoutListener: LogoutListener
 
     private lateinit var toggleButton: Button
+    private lateinit var start: Button
 
     private var isTracking: Boolean = false
 
@@ -62,8 +74,12 @@ class TrackinFragment : Fragment(), TrackingListener {
 
         toggleButton = view.findViewById(R.id.bt_start_stop)
 
+        start = view.findViewById(R.id.bt_login)
         setToggleButtonText()
 
+        start.setOnClickListener {
+            beginAsyncUpdateInsertion()
+        }
         toggleButton.setOnClickListener {
             toggleTracker()
         }
@@ -80,7 +96,7 @@ class TrackinFragment : Fragment(), TrackingListener {
             })
         }
 
-        val lastLocationText = LocusLotrSdk.getLastKnownLocation()?.let {
+        val lastLocationText = LocusLotrSdk.getLastUploadedLocation()?.let {
             getString(R.string.last_known_location, it.toIndentedString())
         } ?: "Last known location not available"
         view.findViewById<TextView>(R.id.tv_location).text = lastLocationText
@@ -131,6 +147,7 @@ class TrackinFragment : Fragment(), TrackingListener {
         isTracking = !isTracking
         setToggleButtonText()
 
+
         if (isTracking) {
 
             val requestParams = TrackingRequestParams.Builder()
@@ -138,7 +155,29 @@ class TrackinFragment : Fragment(), TrackingListener {
                 //.setNotificationChannelId("") // Customize channel Id if required
                 //.setNotificationChannelName("") // Customize channel name if required
                 .build()
-            LocusLotrSdk.startTracking(this, requestParams)
+            try {
+                LocusLotrSdk.startTracking(this, requestParams)
+            } catch (e: Exception) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    Dexter.withContext(requireContext())
+                        .withPermissions(
+                            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                            Manifest.permission.ACTIVITY_RECOGNITION,
+                            Manifest.permission.READ_PHONE_STATE,
+                            Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                        ).withListener(object : MultiplePermissionsListener {
+                            override fun onPermissionsChecked(report: MultiplePermissionsReport) { /* ... */
+                            }
+
+                            override fun onPermissionRationaleShouldBeShown(
+                                permissions: List<PermissionRequest>,
+                                token: PermissionToken
+                            ) {
+
+                            }
+                        }).check()
+                }
+            }
 
             binding.tvErrorMessage.text = ""
             binding.tvErrorTime.text = ""
@@ -184,4 +223,36 @@ class TrackinFragment : Fragment(), TrackingListener {
     companion object {
         const val KEY_IS_TRACKING = "KEY_IS_TRACKING"
     }
+
+    fun beginAsyncUpdateInsertion() {
+       val status : TaskStatusRequest.StatusEnum =  when(binding.etStatus.selectedItem.toString()){
+            "RECEIVED" -> {
+               TaskStatusRequest.StatusEnum.RECEIVED
+           }
+            "WAITING" -> {
+               TaskStatusRequest.StatusEnum.WAITING
+           }
+            "ACCEPTED" -> {
+               TaskStatusRequest.StatusEnum.ACCEPTED
+           }
+            "STARTED" -> {
+               TaskStatusRequest.StatusEnum.STARTED
+           }
+            "COMPLETED" -> {
+               TaskStatusRequest.StatusEnum.COMPLETED
+           }
+            "CANCELLED" -> {
+               TaskStatusRequest.StatusEnum.CANCELLED
+           }
+           else -> {
+               TaskStatusRequest.StatusEnum.ERROR}
+       }
+       val task =  TaskStatusUpdateParams(binding.etTask.text.toString(),status,null)
+        LocusLotrSdk.beginAsyncUpdateInsertion()
+            .addTaskStatusUpdate(task)
+            .commit()
+        Toast.makeText(requireContext(), "Sended Successfully ", Toast.LENGTH_SHORT).show()
+        binding.etTask.setText("")
+    }
+
 }

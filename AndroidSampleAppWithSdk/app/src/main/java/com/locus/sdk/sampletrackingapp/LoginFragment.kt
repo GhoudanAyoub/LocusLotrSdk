@@ -1,6 +1,7 @@
 package com.locus.sdk.sampletrackingapp
 
 
+import android.Manifest
 import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -10,11 +11,15 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import com.karumi.dexter.Dexter
+import com.karumi.dexter.MultiplePermissionsReport
+import com.karumi.dexter.PermissionToken
+import com.karumi.dexter.listener.PermissionRequest
+import com.karumi.dexter.listener.multi.MultiplePermissionsListener
 import com.locus.sdk.sampletrackingapp.databinding.FragmentLoginBinding
 import sh.locus.lotr.sdk.LocusLotrSdk
 import sh.locus.lotr.sdk.LotrSdkReadyCallback
 import sh.locus.lotr.sdk.auth.ClientAuthParams
-import sh.locus.lotr.sdk.auth.UserAuthParams
 import sh.locus.lotr.sdk.exception.LotrSdkError
 
 class LoginFragment : Fragment() {
@@ -29,6 +34,25 @@ class LoginFragment : Fragment() {
         _binding = FragmentLoginBinding.inflate(inflater, container, false)
         val view = binding.root
 
+        Dexter.withContext(requireContext())
+            .withPermissions(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.READ_PHONE_STATE
+            ).withListener(object : MultiplePermissionsListener {
+                override fun onPermissionsChecked(report: MultiplePermissionsReport) { /* ... */
+                }
+
+                override fun onPermissionRationaleShouldBeShown(
+                    permissions: List<PermissionRequest>,
+                    token: PermissionToken
+                ) { /* ... */
+                }
+            }).check()
+
+        binding.etClient.setText("chari-devo")
+        binding.etUser.setText("LIV-897133")
+        binding.etPassword.setText("d19fad68-8cd7-469c-9e6c-9f84f7a56923")
         binding.btLogin.setOnClickListener {
             attemptLogin()
         }
@@ -87,11 +111,7 @@ class LoginFragment : Fragment() {
         }
 
         // App can use either user's or client's login based on BuildConfig
-        if (BuildConfig.USE_CLIENT_LOGIN) {
-            LocusLotrSdk.init(context, ClientAuthParams(clientId, userId, password), true, sdkReadyCallback)
-        } else {
-            LocusLotrSdk.init(context, UserAuthParams(clientId, userId, password), true, sdkReadyCallback)
-        }
+        LocusLotrSdk.init(context, ClientAuthParams(clientId, userId, password), true, sdkReadyCallback)
     }
 
     interface LoginListener {

@@ -11,4 +11,13 @@
     <string name="error_logout_fail">Try again after some time</string>
 
     <string name="notification_text">Location Tracking On</string>
+
+  <array name="statusList">
+      <item>RECEIVED</item>
+      <item>WAITING</item>
+      <item>ACCEPTED</item>
+      <item>STARTED</item>
+      <item>COMPLETED</item>
+      <item>CANCELLED</item>
+  </array>
 </resources>
